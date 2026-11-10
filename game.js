@@ -866,7 +866,7 @@ class MouseKeyboardSource {
 }
 
 class BridgeSource {
-  // Connects to vyuha_bridge.py over WebSocket — the bridge has
+  // Connects to vyuha.py over WebSocket — the bridge has
   // already done the exact same dead-reckoning as
   // vyuha_visualizer_3d.py, so this just forwards its JSON frames.
   constructor(url) {
@@ -894,7 +894,7 @@ class BridgeSource {
   reset(_spawn) { /* position is hardware-driven — nothing to reset locally */ }
 }
 
-// Connects to palm_bridge.py (OpenCV/MediaPipe webcam hand tracking)
+// Connects to palm.py (OpenCV/MediaPipe webcam hand tracking)
 // over its OWN WebSocket, separate from the flight bridge above. This
 // source never supplies flight steering — only where to aim
 // (lookYaw/lookPitch, mapped from wrist tilt + palm height) and when
@@ -910,7 +910,7 @@ class PalmAimSource {
     this.url = url;
     // The bridge draws the tracked skeleton + status overlay on the
     // camera frame itself and ships it as a base64 JPEG alongside the
-    // aim data (see palm_bridge.py's _run_capture_loop) — no separate
+    // aim data (see palm.py's _run_capture_loop) — no separate
     // native window on the bridge's machine. Grab the <img> once and
     // just update its src on every frame; cheaper than going through
     // React/Three re-renders for something this is entirely outside of.

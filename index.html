@@ -92,7 +92,7 @@
     border-radius: 8px; background: #ffcc33; color: #14212c; cursor: pointer;
   }
 
-  /* ── palm_bridge.py camera preview (streamed over its WebSocket,
+  /* ── palm.py camera preview (streamed over its WebSocket,
      not a separate window on the machine running the bridge) ──── */
   #palmPreviewWrap {
     position: fixed; bottom: 12px; right: 12px; z-index: 20;
@@ -127,7 +127,7 @@
       <label for="connMode">Flight steering:</label>
       <select id="connMode">
         <option value="mouse">Mouse / keyboard (test mode)</option>
-        <option value="bridge">Bluetooth (bridge — vyuha_bridge.py)</option>
+        <option value="bridge">Bluetooth (bridge — vyuha.py)</option>
         <option value="serial">USB (Web Serial — Chrome/Edge only)</option>
       </select>
       <input id="bridgeAddr" type="text" value="ws://localhost:8765"
@@ -136,13 +136,13 @@
     <div class="conn-row">
       <label for="palmAimEnabled" style="display:flex; align-items:center; gap:6px; cursor:pointer;">
         <input type="checkbox" id="palmAimEnabled">
-        Webcam palm aim (palm_bridge.py) — layers on top of whichever steering is picked above
+        Webcam palm aim (palm.py) — layers on top of whichever steering is picked above
       </label>
       <input id="palmAddr" type="text" value="ws://localhost:8766"
              style="display:none; width: 190px;">
     </div>
     <p id="palmHint" class="sub" style="display:none; font-size: 12.5px; margin-top: 4px;">
-      Run <code>python palm_bridge.py</code> locally first and allow webcam access. Whichever
+      Run <code>python palm.py</code> locally first and allow webcam access. Whichever
       steering source is selected above keeps flying the drone (WASD/tilt, Bluetooth IMU, or
       USB) — palm tracking only overrides look direction and fire: your <b>left</b> palm aims
       (tilt/height), your <b>right</b> palm pinches thumb+index to fire — each hand does only
@@ -170,7 +170,7 @@
     <button id="retryBtn">RESTART RUN</button>
   </div>
 
-  <!-- palm_bridge.py's camera feed, shown here instead of a separate
+  <!-- palm.py's camera feed, shown here instead of a separate
        OpenCV window on the machine running the bridge. Hidden until
        PalmAimSource connects (Control source = Webcam palm aim). -->
   <div id="palmPreviewWrap">

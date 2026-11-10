@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-palm_bridge.py — OpenCV/MediaPipe webcam palm-tracking bridge for the
+palm.py — OpenCV/MediaPipe webcam palm-tracking bridge for the
 VYUHA-X Terrain Run browser game
 =====================================================================
-Runs entirely separately from vyuha_bridge.py (the flight-telemetry
+Runs entirely separately from vyuha.py (the flight-telemetry
 bridge) and on its own WebSocket port. That's deliberate: this bridge
 only ever supplies two things — where you're aiming, and when you
 fired — never flight steering. In the game, palm tracking layers on
@@ -46,7 +46,7 @@ What it does, frame by frame:
      hand before then is harmless.
   6. Broadcasts {handFound, lookYaw, lookPitch, fire} as JSON over a
      local WebSocket, same broadcast-to-all-clients pattern as
-     vyuha_bridge.py. handFound reflects the LEFT (aim) hand
+     vyuha.py. handFound reflects the LEFT (aim) hand
      specifically — see below.
 
 Palm motions, once it's running:
@@ -80,13 +80,13 @@ this file's folder and cached there.
 
 Usage:
     pip install opencv-python mediapipe websockets
-    python3 palm_bridge.py                   # webcam 0, defaults
-    python3 palm_bridge.py --camera 1         # different webcam
-    python3 palm_bridge.py --sim              # no camera/mediapipe — fake sweep, for testing the pipeline
-    python3 palm_bridge.py --headless         # skip sending the camera preview to the browser (tracking-only, saves bandwidth/CPU)
-    python3 palm_bridge.py --ws-port 8766     # change the WebSocket port (default 8766)
-    python3 palm_bridge.py --yaw-range 90 --pitch-range 55
-    python3 palm_bridge.py --no-mirror        # if your webcam feed isn't already mirrored
+    python3 palm.py                   # webcam 0, defaults
+    python3 palm.py --camera 1         # different webcam
+    python3 palm.py --sim              # no camera/mediapipe — fake sweep, for testing the pipeline
+    python3 palm.py --headless         # skip sending the camera preview to the browser (tracking-only, saves bandwidth/CPU)
+    python3 palm.py --ws-port 8766     # change the WebSocket port (default 8766)
+    python3 palm.py --yaw-range 90 --pitch-range 55
+    python3 palm.py --no-mirror        # if your webcam feed isn't already mirrored
 
 Then in the game's terrain-select menu, set "Control source" to
 "Webcam (OpenCV palm aim)" and leave the address as
@@ -427,7 +427,7 @@ def _sim_frame(t, yaw_range, pitch_range):
 
 # ──────────────────────────────────────────────────────────────────
 #  WebSocket server — same broadcast-to-all-clients shape as
-#  vyuha_bridge.py, just fed by the palm tracker above instead of a
+#  vyuha.py, just fed by the palm tracker above instead of a
 #  serial IMU stream.
 # ──────────────────────────────────────────────────────────────────
 async def _broadcast_loop(get_latest, clients: set, hz: float):
@@ -526,7 +526,7 @@ def main():
     ap.add_argument("--camera", type=int, default=0, help="Webcam index (default 0).")
     ap.add_argument("--ws-port", type=int, default=8766,
                      help="WebSocket port the game connects to (default 8766, distinct from "
-                          "vyuha_bridge.py's 8765 so both can run at once).")
+                          "vyuha.py's 8765 so both can run at once).")
     ap.add_argument("--yaw-range", type=float, default=70.0,
                      help="Degrees of look-left/right at the edge of the active frame area (default 70).")
     ap.add_argument("--pitch-range", type=float, default=45.0,

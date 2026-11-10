@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-aethon_bridge.py — ESP32/MPU6050 telemetry bridge for the AETHON-X
+vyuha.py — ESP32/MPU6050 telemetry bridge for the AETHON-X
 Terrain Run browser game
 =====================================================================
 Browsers cannot speak Classic Bluetooth SPP (Web Bluetooth only
@@ -42,13 +42,13 @@ programmatically by device name.
 
 Usage:
     pip install pyserial websockets bleak
-    python3 aethon_bridge.py --ble                    # BLE (recommended)
-    python3 aethon_bridge.py --ble --ble-name AETHON-X
-    python3 aethon_bridge.py                           # Classic/USB, auto-detect port
-    python3 aethon_bridge.py --port COM5                # explicit port (Windows)
-    python3 aethon_bridge.py --port /dev/cu.usbserial-0001
-    python3 aethon_bridge.py --sim                      # no hardware — fake telemetry
-    python3 aethon_bridge.py --ws-port 8765             # change the WebSocket port
+    python3 vyuha.py --ble                    # BLE (recommended)
+    python3 vyuha.py --ble --ble-name AETHON-X
+    python3 vyuha.py                           # Classic/USB, auto-detect port
+    python3 vyuha.py --port COM5                # explicit port (Windows)
+    python3 vyuha.py --port /dev/cu.usbserial-0001
+    python3 vyuha.py --sim                      # no hardware — fake telemetry
+    python3 vyuha.py --ws-port 8765             # change the WebSocket port
 
 Then in the game's terrain-select menu, choose "Bluetooth (bridge)" and
 leave the address as ws://localhost:8765 (default).

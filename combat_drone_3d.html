@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Combat Drone — MPU6050 Controller</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --green:#00ff88;--red:#ff3333;--amber:#f9a825;--blue:#4fc3f7;
+    --bg:#0a0c0f;--panel:#0f1318;--border:#1e2830;--text:#c8d8e8;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+
+  /* ── Header ── */
+  header{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0}
+  .logo{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--green);letter-spacing:2px}
+  .status{display:flex;gap:16px;align-items:center}
+  .pill{font-size:11px;font-family:'Share Tech Mono',monospace;padding:3px 10px;border-radius:3px;border:1px solid}
+  .pill.armed{color:var(--red);border-color:var(--red);animation:blink 1s infinite}
+  .pill.live{color:var(--green);border-color:var(--green)}
+  .pill.freq{color:var(--amber);border-color:var(--amber)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+
+  /* ── Main layout ── */
+  .main{display:flex;flex:1;overflow:hidden}
+  canvas{display:block;flex:1}
+
+  /* ── Side panels ── */
+  .panel{width:210px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+  .panel.left{border-left:none;border-right:1px solid var(--border)}
+  .phead{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;padding:10px 12px 6px;border-bottom:1px solid var(--border)}
+
+  /* ── Operation buttons ── */
+  .ops{padding:8px}
+  .op-btn{width:100%;text-align:left;background:transparent;border:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px 10px;margin-bottom:5px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.15s;letter-spacing:0.5px}
+  .op-btn:hover{border-color:var(--green);color:var(--green);background:rgba(0,255,136,0.04)}
+  .op-btn.active{border-color:var(--green);color:var(--green);background:rgba(0,255,136,0.08)}
+  .op-btn .icon{font-size:16px;width:20px;text-align:center}
+  .op-btn .sub{font-size:10px;color:#556;font-family:'Share Tech Mono',monospace;font-weight:400;margin-top:1px}
+
+  /* ── Arm controls ── */
+  .arm-section{padding:8px}
+  .arm-btn{width:100%;background:transparent;border:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px 10px;margin-bottom:5px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.15s}
+  .arm-btn:hover{border-color:var(--red);color:var(--red);background:rgba(255,51,51,0.05)}
+  .arm-btn.active{border-color:var(--red);color:var(--red);background:rgba(255,51,51,0.08)}
+  .arm-btn .icon{font-size:15px;width:20px;text-align:center}
+  .fire-btn{width:100%;background:rgba(255,51,51,0.15);border:1px solid var(--red);color:var(--red);font-family:'Share Tech Mono',monospace;font-size:13px;font-weight:700;padding:9px;margin:6px 0;border-radius:4px;cursor:pointer;letter-spacing:2px;transition:all 0.15s}
+  .fire-btn:hover{background:rgba(255,51,51,0.3);box-shadow:0 0 12px rgba(255,51,51,0.3)}
+  .fire-btn:active{transform:scale(0.97)}
+
+  /* ── Telemetry ── */
+  .telem{padding:8px 12px}
+  .trow{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(30,40,48,0.7);font-size:12px}
+  .trow .lbl{color:#556;font-family:'Share Tech Mono',monospace;font-size:10px}
+  .trow .val{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green)}
+
+  /* ── HUD overlay ── */
+  #hud{position:absolute;top:50px;left:220px;right:220px;pointer-events:none}
+  .hud-top{display:flex;justify-content:space-between;padding:8px 12px}
+  .hud-box{background:rgba(10,12,15,0.7);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-family:'Share Tech Mono',monospace;font-size:11px}
+  .hud-box .hl{color:#445;font-size:9px;letter-spacing:1px;margin-bottom:2px}
+  .hud-box .val{color:var(--green);font-size:14px;font-weight:700}
+  .hud-box .val.red{color:var(--red)}
+  .hud-box .val.amber{color:var(--amber)}
+  .crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;pointer-events:none}
+  .crosshair::before,.crosshair::after{content:'';position:absolute;background:rgba(255,51,51,0.6)}
+  .crosshair::before{width:1px;height:100%;left:50%;top:0}
+  .crosshair::after{height:1px;width:100%;top:50%;left:0}
+  .ch-ring{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;border:1px solid rgba(255,51,51,0.5);border-radius:50%}
+  .corner{position:absolute;width:16px;height:16px;border-color:var(--green);border-style:solid;opacity:0.6}
+  .corner.tl{top:8px;left:8px;border-width:1px 0 0 1px}
+  .corner.tr{top:8px;right:8px;border-width:1px 1px 0 0}
+  .corner.bl{bottom:8px;left:8px;border-width:0 0 1px 1px}
+  .corner.br{bottom:8px;right:8px;border-width:0 1px 1px 0}
+  .scan-line{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,136,0.15),transparent);animation:scan 4s linear infinite}
+  @keyframes scan{0%{top:0%}100%{top:100%}}
+
+  /* ── Footer ── */
+  footer{background:var(--panel);border-top:1px solid var(--border);padding:5px 18px;display:flex;gap:24px;font-family:'Share Tech Mono',monospace;font-size:10px;color:#445;flex-shrink:0}
+  footer span{color:#667}
+
+  /* ── Muzzle flash ── */
+  #flash{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,100,0,0.08);pointer-events:none;opacity:0;transition:opacity 0.05s}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">&#9632; COMBAT-DRONE / MPU6050-CTRL v2.4</div>
+  <div class="status">
+    <div class="pill freq">100Hz</div>
+    <div class="pill live">RF LINK OK</div>
+    <div class="pill armed">ARMED</div>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Left panel: Drone operations -->
+  <div class="panel left">
+    <div class="phead">DRONE OPERATIONS</div>
+    <div class="ops" id="drone-ops">
+      <button class="op-btn" data-op="hover">   <span class="icon">◉</span><div><div>HOVER</div><div class="sub">all sensors ~0</div></div></button>
+      <button class="op-btn" data-op="forward">  <span class="icon">⬆</span><div><div>FORWARD</div><div class="sub">pitch +8°</div></div></button>
+      <button class="op-btn" data-op="backward"> <span class="icon">⬇</span><div><div>BACKWARD</div><div class="sub">pitch -8°</div></div></button>
+      <button class="op-btn" data-op="left">     <span class="icon">⬅</span><div><div>STRAFE LEFT</div><div class="sub">roll -6°</div></div></button>
+      <button class="op-btn" data-op="right">    <span class="icon">➡</span><div><div>STRAFE RIGHT</div><div class="sub">roll +6°</div></div></button>
+      <button class="op-btn" data-op="yawL">     <span class="icon">↺</span><div><div>YAW LEFT</div><div class="sub">gyroZ &lt; -15°/s</div></div></button>
+      <button class="op-btn" data-op="yawR">     <span class="icon">↻</span><div><div>YAW RIGHT</div><div class="sub">gyroZ &gt; +15°/s</div></div></button>
+      <button class="op-btn" data-op="climb">    <span class="icon">▲</span><div><div>CLIMB</div><div class="sub">accZ &gt; 1.12g</div></div></button>
+      <button class="op-btn" data-op="descend">  <span class="icon">▼</span><div><div>DESCEND</div><div class="sub">accZ &lt; 0.88g</div></div></button>
+    </div>
+    <div class="phead" style="margin-top:4px">TELEMETRY</div>
+    <div class="telem">
+      <div class="trow"><span class="lbl">PITCH</span><span class="val" id="t-pitch">0.0°</span></div>
+      <div class="trow"><span class="lbl">ROLL</span><span class="val" id="t-roll">0.0°</span></div>
+      <div class="trow"><span class="lbl">YAW</span><span class="val" id="t-yaw">0.0°</span></div>
+      <div class="trow"><span class="lbl">ALTITUDE</span><span class="val" id="t-alt">1.80m</span></div>
+      <div class="trow"><span class="lbl">THR</span><span class="val" id="t-thr">1500µs</span></div>
+    </div>
+  </div>
+
+  <!-- 3D viewport -->
+  <div style="position:relative;flex:1">
+    <canvas id="c"></canvas>
+    <div id="hud">
+      <div class="hud-top">
+        <div class="hud-box"><div class="hl">BODY MOVEMENT</div><div class="val" id="h-move">STILL</div></div>
+        <div class="hud-box"><div class="hl">DRONE CMD</div><div class="val" id="h-cmd">HOVER</div></div>
+        <div class="hud-box"><div class="hl">ARM CMD</div><div class="val red" id="h-arm">IDLE</div></div>
+        <div class="hud-box"><div class="hl">WEAPON</div><div class="val amber" id="h-wpn">SAFE</div></div>
+      </div>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div class="crosshair"><div class="ch-ring"></div></div>
+      <div class="scan-line"></div>
+    </div>
+    <div id="flash"></div>
+  </div>
+
+  <!-- Right panel: Robotic arm controls -->
+  <div class="panel">
+    <div class="phead">ROBO ARM CTRL</div>
+    <div class="arm-section">
+      <button class="arm-btn" data-arm="idle">    <span class="icon">◉</span><div><div>IDLE</div><div class="sub" style="color:#445;font-family:monospace;font-size:10px">arm at rest</div></div></button>
+      <button class="arm-btn" data-arm="aimFwd">  <span class="icon">⬆</span><div><div>AIM FORWARD</div><div class="sub" style="color:#445;font-family:monospace;font-size:10px">wrist extend</div></div></button>
+      <button class="arm-btn" data-arm="aimUp">   <span class="icon">↑</span><div><div>AIM UP</div><div class="sub" style="color:#445;font-family:monospace;font-size:10px">elbow raise</div></div></button>
+      <button class="arm-btn" data-arm="aimDown"> <span class="icon">↓</span><div><div>AIM DOWN</div><div class="sub" style="color:#445;font-family:monospace;font-size:10px">elbow lower</div></div></button>
+      <button class="arm-btn" data-arm="aimLeft"> <span class="icon">⬅</span><div><div>AIM LEFT</div><div class="sub" style="color:#445;font-family:monospace;font-size:10px">base rotate L</div></div></button>
+      <button class="arm-btn" data-arm="aimRight"><span class="icon">➡</span><div><div>AIM RIGHT</div><div class="sub" style="color:#445;font-family:monospace;font-size:10px">base rotate R</div></div></button>
+      <button class="arm-btn" data-arm="retract"> <span class="icon">◀</span><div><div>RETRACT</div><div class="sub" style="color:#445;font-family:monospace;font-size:10px">fold back</div></div></button>
+    </div>
+    <div style="padding:0 8px">
+      <button class="fire-btn" id="fire-btn" onclick="fireWeapon()">⚡ FIRE WEAPON</button>
+    </div>
+    <div class="phead" style="margin-top:4px">WEAPON STATUS</div>
+    <div class="telem">
+      <div class="trow"><span class="lbl">AMMO</span><span class="val" id="t-ammo" style="color:var(--amber)">20 / 20</span></div>
+      <div class="trow"><span class="lbl">SHOTS</span><span class="val" id="t-shots">0</span></div>
+      <div class="trow"><span class="lbl">ARM BASE</span><span class="val" id="t-base">0.0°</span></div>
+      <div class="trow"><span class="lbl">ELBOW</span><span class="val" id="t-elbow">0.0°</span></div>
+      <div class="trow"><span class="lbl">WRIST</span><span class="val" id="t-wrist">0.0°</span></div>
+    </div>
+    <div class="phead" style="margin-top:4px">CONTROLS</div>
+    <div style="padding:8px 12px;font-family:'Share Tech Mono',monospace;font-size:10px;color:#445;line-height:1.9">
+      <div>DRAG  → orbit camera</div>
+      <div>SCROLL → zoom</div>
+      <div>LEFT PANEL → drone</div>
+      <div>RIGHT PANEL → arm</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>MPU6050 / I2C</span>
+  <span>NRF24L01 / 2.4GHz</span>
+  <span>4× ESC / 1000-2000µs</span>
+  <span>SERVO ARM / 3-DOF</span>
+  <span id="fps-counter">60 FPS</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─────────────────────────────────────────────
+//  SCENE SETUP
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('c');
+function resize(){
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width=r.width; canvas.height=r.height;
+  renderer.setSize(r.width,r.height);
+  camera.aspect=r.width/r.height; camera.updateProjectionMatrix();
+  const hud=document.getElementById('hud');
+  hud.style.height=r.height+'px';
+}
+
+const renderer = new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0a0c0f,18,40);
+
+const camera = new THREE.PerspectiveCamera(44,2,0.1,100);
+camera.position.set(0,3.5,9);
+
+// Lights
+scene.add(new THREE.AmbientLight(0x1a2030,1.2));
+const sun=new THREE.DirectionalLight(0xffffff,1.3);
+sun.position.set(6,12,8); sun.castShadow=true;
+sun.shadow.mapSize.width=2048; sun.shadow.mapSize.height=2048;
+scene.add(sun);
+const fill=new THREE.DirectionalLight(0x204060,0.5);
+fill.position.set(-5,3,-5); scene.add(fill);
+const rimL=new THREE.PointLight(0x00ff88,0.4,8);
+rimL.position.set(-3,2,0); scene.add(rimL);
+const rimR=new THREE.PointLight(0xff3333,0.3,8);
+rimR.position.set(3,1,0); scene.add(rimR);
+
+// Ground
+const gndGeo=new THREE.PlaneGeometry(30,30);
+const gndMat=new THREE.MeshStandardMaterial({color:0x080b0f,roughness:1,metalness:0});
+const gnd=new THREE.Mesh(gndGeo,gndMat); gnd.rotation.x=-Math.PI/2; gnd.position.y=-2.2; gnd.receiveShadow=true;
+scene.add(gnd);
+const grid=new THREE.GridHelper(30,30,0x1a2830,0x0f1820);
+grid.position.y=-2.19; scene.add(grid);
+
+// ── Materials ──────────────────────────────────
+const mk=(g,m)=>{const mesh=new THREE.Mesh(g,m);mesh.castShadow=true;mesh.receiveShadow=true;return mesh;};
+const M={
+  body:new THREE.MeshStandardMaterial({color:0x1a1e24,roughness:0.4,metalness:0.7}),
+  arm: new THREE.MeshStandardMaterial({color:0x0e1014,roughness:0.55,metalness:0.4}),
+  motor:new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:0.2,metalness:0.9}),
+  prop: new THREE.MeshStandardMaterial({color:0x111111,roughness:0.5,side:THREE.DoubleSide}),
+  pcb:  new THREE.MeshStandardMaterial({color:0x0d5c2e,roughness:0.4}),
+  chip: new THREE.MeshStandardMaterial({color:0x060808,roughness:0.3}),
+  wpn:  new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:0.25,metalness:0.95}),
+  wpnAccent:new THREE.MeshStandardMaterial({color:0x222222,roughness:0.2,metalness:0.8}),
+  barrel:new THREE.MeshStandardMaterial({color:0x333333,roughness:0.15,metalness:1}),
+  robArm:new THREE.MeshStandardMaterial({color:0x1a1e24,roughness:0.3,metalness:0.8}),
+  joint: new THREE.MeshStandardMaterial({color:0x2a3040,roughness:0.2,metalness:0.9}),
+  bat:   new THREE.MeshStandardMaterial({color:0x061838,roughness:0.5}),
+  cam:   new THREE.MeshStandardMaterial({color:0x101318,roughness:0.3,metalness:0.7}),
+  lens:  new THREE.MeshStandardMaterial({color:0x030310,roughness:0.02,metalness:0.95}),
+  led_r: new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff2200,emissiveIntensity:1}),
+  led_g: new THREE.MeshStandardMaterial({color:0x00ff44,emissive:0x00ff44,emissiveIntensity:1}),
+  muzzle:new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff4400,emissiveIntensity:0,transparent:true,opacity:0.9}),
+};
+
+// ─────────────────────────────────────────────
+//  DRONE FRAME
+// ─────────────────────────────────────────────
+const drone=new THREE.Group();
+scene.add(drone);
+
+// Body
+const body=mk(new THREE.BoxGeometry(0.75,0.2,0.75),M.body); drone.add(body);
+// Battery
+const bat=mk(new THREE.BoxGeometry(0.58,0.1,0.46),M.bat); bat.position.y=-0.15; drone.add(bat);
+// Dome
+const dome=mk(new THREE.CylinderGeometry(0.22,0.37,0.15,16),M.body); dome.position.y=0.175; drone.add(dome);
+
+// Camera pod
+const camPod=mk(new THREE.BoxGeometry(0.16,0.12,0.1),M.cam); camPod.position.set(0,-0.04,0.42); drone.add(camPod);
+const lens=mk(new THREE.CylinderGeometry(0.038,0.044,0.05,16),M.lens); lens.rotation.x=Math.PI/2; lens.position.set(0,-0.04,0.47); drone.add(lens);
+
+// 4 arms + motors + props
+const propGroups=[];
+const armDefs=[{x:1,z:1,a:Math.PI/4,cw:true},{x:-1,z:1,a:-Math.PI/4,cw:false},{x:1,z:-1,a:-Math.PI/4,cw:false},{x:-1,z:-1,a:Math.PI/4,cw:true}];
+armDefs.forEach(({x,z,a,cw},i)=>{
+  const arm=mk(new THREE.CylinderGeometry(0.036,0.054,1.35,8),M.arm); arm.rotation.z=Math.PI/2; arm.rotation.y=a; arm.position.set(x*0.48,0,z*0.48); drone.add(arm);
+  const mot=mk(new THREE.CylinderGeometry(0.105,0.095,0.1,16),M.motor); mot.position.set(x*0.97,0.04,z*0.97); drone.add(mot);
+  const bell=mk(new THREE.CylinderGeometry(0.085,0.105,0.06,16),new THREE.MeshStandardMaterial({color:0x444,metalness:0.95,roughness:0.15})); bell.position.set(x*0.97,0.1,z*0.97); drone.add(bell);
+  const pg=new THREE.Group(); pg.position.set(x*0.97,0.14,z*0.97);
+  [-1,1].forEach(s=>{const bl=mk(new THREE.BoxGeometry(0.56,0.013,0.06),M.prop); bl.position.x=s*0.14; bl.rotation.z=s*0.09; pg.add(bl);});
+  const hub=mk(new THREE.CylinderGeometry(0.024,0.024,0.044,8),M.motor); pg.add(hub);
+  propGroups.push({g:pg,cw}); drone.add(pg);
+  const led=mk(new THREE.SphereGeometry(0.022,8,8), i<2?M.led_r:M.led_g); led.position.set(x*0.97,-0.022,z*0.97); drone.add(led);
+});
+
+// Landing gear
+[[-0.3,-0.3],[0.3,-0.3],[-0.3,0.3],[0.3,0.3]].forEach(([x,z])=>{
+  const leg=mk(new THREE.CylinderGeometry(0.018,0.018,0.32,6),M.arm); leg.position.set(x,-0.24,z); drone.add(leg);
+  const foot=mk(new THREE.CylinderGeometry(0.018,0.018,0.32,6),M.arm); foot.rotation.x=Math.PI/2; foot.position.set(x,-0.4,z<0?z-0.06:z+0.06); drone.add(foot);
+});
+
+// MPU6050 sensor
+const sensor=new THREE.Group();
+const pcb=mk(new THREE.BoxGeometry(0.24,0.018,0.17),M.pcb); sensor.add(pcb);
+const chip=mk(new THREE.BoxGeometry(0.068,0.028,0.068),M.chip); chip.position.y=0.023; sensor.add(chip);
+const wireCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(0,0,0),new THREE.Vector3(0.08,0.1,0.2),new THREE.Vector3(0.05,0.18,0.42)]);
+const wireGeo=new THREE.TubeGeometry(wireCurve,20,0.007,6,false);
+const wireMesh=mk(wireGeo,new THREE.MeshStandardMaterial({color:0xffd700,roughness:0.8}));
+sensor.add(wireMesh);
+sensor.position.set(0,0.27,-0.05);
+drone.add(sensor);
+
+// ─────────────────────────────────────────────
+//  ROBOTIC ARM WITH WEAPON (3-DOF)
+// ─────────────────────────────────────────────
+// Mounted on left side of drone body
+// Base → Upper arm → Lower arm → Weapon
+
+const robBase=new THREE.Group();  // rotates around Y (pan left/right)
+robBase.position.set(-0.38,0,0);  // attached to left side of drone
+drone.add(robBase);
+
+// Base mount plate
+const baseMount=mk(new THREE.BoxGeometry(0.14,0.08,0.14),M.joint);
+robBase.add(baseMount);
+
+// Base rotation cylinder
+const baseCyl=mk(new THREE.CylinderGeometry(0.055,0.065,0.06,12),M.joint);
+baseCyl.position.y=0.07; robBase.add(baseCyl);
+
+// Upper arm group (pivots at shoulder = base top)
+const shoulder=new THREE.Group();
+shoulder.position.y=0.1;
+robBase.add(shoulder);
+
+const upperArm=mk(new THREE.BoxGeometry(0.07,0.38,0.07),M.robArm);
+upperArm.position.y=0.19;
+shoulder.add(upperArm);
+
+// Shoulder joint sphere
+const shJoint=mk(new THREE.SphereGeometry(0.055,12,12),M.joint);
+shoulder.add(shJoint);
+
+// Elbow group
+const elbow=new THREE.Group();
+elbow.position.y=0.38;
+shoulder.add(elbow);
+
+// Elbow joint
+const elbJoint=mk(new THREE.SphereGeometry(0.048,12,12),M.joint);
+elbow.add(elbJoint);
+
+// Lower arm
+const lowerArm=mk(new THREE.BoxGeometry(0.065,0.34,0.065),M.robArm);
+lowerArm.position.y=0.17;
+elbow.add(lowerArm);
+
+// Wrist group
+const wrist=new THREE.Group();
+wrist.position.y=0.34;
+elbow.add(wrist);
+
+// Wrist joint
+const wrJoint=mk(new THREE.SphereGeometry(0.042,12,12),M.joint);
+wrist.add(wrJoint);
+
+// ── WEAPON (mini gatling / cannon) ────────────
+const weapon=new THREE.Group();
+weapon.position.y=0.06;
+wrist.add(weapon);
+
+// Weapon body housing
+const wpnBody=mk(new THREE.BoxGeometry(0.14,0.09,0.32),M.wpn);
+weapon.add(wpnBody);
+
+// Top rail
+const rail=mk(new THREE.BoxGeometry(0.05,0.025,0.30),M.wpnAccent);
+rail.position.set(0,0.057,0); weapon.add(rail);
+
+// Main barrel
+const barrelMain=mk(new THREE.CylinderGeometry(0.025,0.028,0.5,12),M.barrel);
+barrelMain.rotation.x=Math.PI/2; barrelMain.position.set(0,0,0.24); weapon.add(barrelMain);
+
+// Barrel tip
+const tipGeo=new THREE.CylinderGeometry(0.02,0.025,0.04,8);
+const tip=mk(tipGeo,M.barrel); tip.rotation.x=Math.PI/2; tip.position.set(0,0,0.49); weapon.add(tip);
+
+// Side barrels (gatling look)
+[-0.045,0.045].forEach(ox=>{
+  const sb=mk(new THREE.CylinderGeometry(0.014,0.016,0.38,8),M.barrel);
+  sb.rotation.x=Math.PI/2; sb.position.set(ox,0.018,0.18); weapon.add(sb);
+});
+
+// Ammo drum
+const drum=mk(new THREE.CylinderGeometry(0.055,0.055,0.1,16),M.wpnAccent);
+drum.position.set(0,-0.06,0); weapon.add(drum);
+
+// Scope
+const scope=mk(new THREE.CylinderGeometry(0.018,0.018,0.2,10),M.barrel);
+scope.rotation.x=Math.PI/2; scope.position.set(0,0.07,0.05); weapon.add(scope);
+const scopeL=mk(new THREE.CylinderGeometry(0.022,0.018,0.03,10),M.barrel);
+scopeL.rotation.x=Math.PI/2; scopeL.position.set(0,0.07,0.155); weapon.add(scopeL);
+const scopeR=mk(new THREE.CylinderGeometry(0.022,0.018,0.03,10),M.barrel);
+scopeR.rotation.x=Math.PI/2; scopeR.position.set(0,0.07,-0.055); weapon.add(scopeR);
+
+// Muzzle flash mesh
+const muzzleFlash=mk(new THREE.ConeGeometry(0.04,0.2,8),M.muzzle);
+muzzleFlash.rotation.x=-Math.PI/2; muzzleFlash.position.set(0,0,0.62); weapon.add(muzzleFlash);
+
+// Muzzle point light
+const muzzleLight=new THREE.PointLight(0xff6600,0,2.5);
+muzzleLight.position.set(0,0,0.6);
+weapon.add(muzzleLight);
+
+// ─────────────────────────────────────────────
+//  LABELS (sprites)
+// ─────────────────────────────────────────────
+function makeSprite(text,col){
+  const cv=document.createElement('canvas'); cv.width=320; cv.height=72;
+  const ctx=cv.getContext('2d'); ctx.clearRect(0,0,320,72);
+  ctx.fillStyle=col; ctx.font='bold 22px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text,160,36);
+  const tex=new THREE.CanvasTexture(cv);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+  sp.scale.set(1.2,0.3,1); return sp;
+}
+const labelGroup=new THREE.Group(); drone.add(labelGroup);
+[
+  {t:'MPU6050 (collarbone)',c:'#4ade80',p:[0,0.65,-0.05]},
+  {t:'Motor FL CW',c:'#fb923c',p:[1.05,0.42,1.05]},
+  {t:'Motor FR CCW',c:'#fb923c',p:[-1.05,0.42,1.05]},
+  {t:'Motor RL CCW',c:'#fb923c',p:[1.05,0.42,-1.05]},
+  {t:'Motor RR CW',c:'#fb923c',p:[-1.05,0.42,-1.05]},
+  {t:'Camera',c:'#60a5fa',p:[0,0.18,0.6]},
+  {t:'WEAPON ARM',c:'#ff4444',p:[-1.2,0.8,0]},
+].forEach(({t,c,p})=>{const s=makeSprite(t,c); s.position.set(...p); labelGroup.add(s);});
+
+// ─────────────────────────────────────────────
+//  OPERATIONS
+// ─────────────────────────────────────────────
+const DRONE_OPS={
+  hover:    {move:'STILL',      cmd:'HOVER',        pitch:0,    roll:0,   yawS:0,  dY:0},
+  forward:  {move:'LEAN FWD',  cmd:'FLY FORWARD',  pitch:-0.32,roll:0,   yawS:0,  dY:0},
+  backward: {move:'LEAN BACK', cmd:'FLY BACKWARD', pitch:0.32, roll:0,   yawS:0,  dY:0},
+  left:     {move:'TILT LEFT', cmd:'STRAFE LEFT',  pitch:0,    roll:-0.28,yawS:0, dY:0},
+  right:    {move:'TILT RIGHT',cmd:'STRAFE RIGHT', pitch:0,    roll:0.28, yawS:0, dY:0},
+  yawL:     {move:'TURN LEFT', cmd:'ROTATE LEFT',  pitch:0,    roll:0,   yawS:0.025,dY:0},
+  yawR:     {move:'TURN RIGHT',cmd:'ROTATE RIGHT', pitch:0,    roll:0,   yawS:-0.025,dY:0},
+  climb:    {move:'RAISE CHEST',cmd:'CLIMB',       pitch:0,    roll:0,   yawS:0,  dY:1.1},
+  descend:  {move:'DROP CHEST',cmd:'DESCEND',      pitch:0,    roll:0,   yawS:0,  dY:-0.9},
+};
+const ARM_OPS={
+  idle:     {cmd:'IDLE',     baseY:0,   elbowX:0,     wristX:0},
+  aimFwd:   {cmd:'AIM FWD', baseY:0,   elbowX:0.3,   wristX:-0.3},
+  aimUp:    {cmd:'AIM UP',  baseY:0,   elbowX:-0.55, wristX:0.3},
+  aimDown:  {cmd:'AIM DOWN',baseY:0,   elbowX:0.55,  wristX:-0.3},
+  aimLeft:  {cmd:'AIM L',   baseY:0.9, elbowX:0,     wristX:0},
+  aimRight: {cmd:'AIM R',   baseY:-0.9,elbowX:0,     wristX:0},
+  retract:  {cmd:'RETRACT', baseY:0,   elbowX:1.2,   wristX:-1.2},
+};
+
+let currentDroneOp='hover', currentArmOp='idle';
+let tPitch=0,tRoll=0,cPitch=0,cRoll=0,droneY=0,tDroneY=0;
+let tBaseY=0,tElbX=0,tWrX=0;
+let cBaseY=0,cElbX=0,cWrX=0;
+let ammo=20, shots=0;
+
+function setDroneOp(op){
+  currentDroneOp=op;
+  const o=DRONE_OPS[op];
+  document.getElementById('h-move').textContent=o.move;
+  document.getElementById('h-cmd').textContent=o.cmd;
+  document.querySelectorAll('.op-btn').forEach(b=>b.classList.toggle('active',b.dataset.op===op));
+  tPitch=o.pitch; tRoll=o.roll;
+  tDroneY=o.dY===1?1.1:o.dY===-1?-0.9:0;
+}
+function setArmOp(op){
+  currentArmOp=op;
+  const o=ARM_OPS[op];
+  document.getElementById('h-arm').textContent=o.cmd;
+  document.querySelectorAll('.arm-btn').forEach(b=>b.classList.toggle('active',b.dataset.arm===op));
+  tBaseY=o.baseY; tElbX=o.elbowX; tWrX=o.wristX;
+}
+
+document.querySelectorAll('.op-btn').forEach(b=>b.addEventListener('click',()=>setDroneOp(b.dataset.op)));
+document.querySelectorAll('.arm-btn').forEach(b=>b.addEventListener('click',()=>setArmOp(b.dataset.arm)));
+setDroneOp('hover'); setArmOp('idle');
+
+// ─────────────────────────────────────────────
+//  FIRE WEAPON
+// ─────────────────────────────────────────────
+let fireTimer=0;
+function fireWeapon(){
+  if(ammo<=0){document.getElementById('h-wpn').textContent='EMPTY!'; return;}
+  ammo--; shots++;
+  document.getElementById('t-ammo').textContent=ammo+' / 20';
+  document.getElementById('t-shots').textContent=shots;
+  document.getElementById('h-wpn').textContent='FIRING!';
+  document.getElementById('h-wpn').style.color='#ff4444';
+  fireTimer=12;
+
+  // Muzzle flash
+  muzzleFlash.material.emissiveIntensity=3; muzzleLight.intensity=4;
+  document.getElementById('flash').style.opacity=1;
+  setTimeout(()=>{
+    muzzleFlash.material.emissiveIntensity=0; muzzleLight.intensity=0;
+    document.getElementById('flash').style.opacity=0;
+    document.getElementById('h-wpn').textContent=ammo>0?'ARMED':'EMPTY!';
+  },120);
+
+  // Spawn bullet tracer
+  spawnTracer();
+}
+
+// Bullet tracers
+const tracers=[];
+function spawnTracer(){
+  const geo=new THREE.CylinderGeometry(0.008,0.008,0.5,4);
+  const mat=new THREE.MeshBasicMaterial({color:0xffaa00});
+  const t=new THREE.Mesh(geo,mat);
+  t.rotation.x=Math.PI/2;
+  // world position of muzzle
+  const wp=new THREE.Vector3(); muzzleFlash.getWorldPosition(wp);
+  t.position.copy(wp);
+  // direction: weapon forward
+  const dir=new THREE.Vector3(0,0,1); dir.applyQuaternion(weapon.getWorldQuaternion(new THREE.Quaternion()));
+  scene.add(t);
+  tracers.push({mesh:t,dir,life:1.0});
+}
+function updateTracers(){
+  for(let i=tracers.length-1;i>=0;i--){
+    const tr=tracers[i];
+    tr.life-=0.045;
+    tr.mesh.position.addScaledVector(tr.dir,0.35);
+    tr.mesh.material.opacity=tr.life;
+    if(tr.life<=0){scene.remove(tr.mesh);tracers.splice(i,1);}
+  }
+}
+
+// ─────────────────────────────────────────────
+//  ORBIT CONTROLS
+// ─────────────────────────────────────────────
+let drag=false,px=0,py=0,rotX=-0.28,rotY=0.55,zoom=9;
+canvas.addEventListener('mousedown',e=>{drag=true;px=e.clientX;py=e.clientY;});
+window.addEventListener('mouseup',()=>drag=false);
+canvas.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  rotY+=(e.clientX-px)*0.007; rotX+=(e.clientY-py)*0.006;
+  rotX=Math.max(-1.15,Math.min(0.2,rotX)); px=e.clientX;py=e.clientY;
+});
+canvas.addEventListener('wheel',e=>{zoom=Math.max(3,Math.min(16,zoom+e.deltaY*0.013));},{passive:true});
+let lt2=null;
+canvas.addEventListener('touchstart',e=>{lt2=e.touches[0];},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(!lt2)return; const t=e.touches[0];
+  rotY+=(t.clientX-lt2.clientX)*0.01; rotX+=(t.clientY-lt2.clientY)*0.008;
+  rotX=Math.max(-1.15,Math.min(0.2,rotX)); lt2=t;
+},{passive:true});
+
+// ─────────────────────────────────────────────
+//  ANIMATION LOOP
+// ─────────────────────────────────────────────
+let t=0, frameCount=0, lastFpsTime=performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  t+=0.016;
+
+  // Smooth drone states
+  cPitch+=(tPitch-cPitch)*0.05;
+  cRoll +=(tRoll-cRoll)*0.05;
+  droneY+=(tDroneY-droneY)*0.022;
+
+  drone.rotation.x=cPitch;
+  drone.rotation.z=cRoll;
+  drone.position.y=droneY+Math.sin(t*1.5)*0.04;
+
+  if(currentDroneOp==='yawL') drone.rotation.y+=0.025;
+  else if(currentDroneOp==='yawR') drone.rotation.y-=0.025;
+
+  // Smooth arm joints
+  cBaseY+=(tBaseY-cBaseY)*0.07;
+  cElbX +=(tElbX-cElbX)*0.07;
+  cWrX  +=(tWrX-cWrX)*0.07;
+  robBase.rotation.y=cBaseY;
+  shoulder.rotation.x=cElbX;
+  elbow.rotation.x=cWrX;
+
+  // Prop spin
+  propGroups.forEach(({g,cw})=>{ g.rotation.y+=(cw?1:-1)*0.33; });
+
+  // Drum spin on fire
+  if(fireTimer>0){ drum.rotation.z+=0.35; fireTimer--; }
+
+  // Tracers
+  updateTracers();
+
+  // Camera orbit
+  const cx=Math.sin(rotY)*Math.cos(rotX)*zoom;
+  const cy=Math.sin(-rotX)*zoom+droneY*0.2;
+  const cz=Math.cos(rotY)*Math.cos(rotX)*zoom;
+  camera.position.set(cx,cy,cz);
+  camera.lookAt(0,droneY*0.2,0);
+
+  // Telemetry update
+  document.getElementById('t-pitch').textContent=(cPitch*57.3).toFixed(1)+'°';
+  document.getElementById('t-roll').textContent=(cRoll*57.3).toFixed(1)+'°';
+  document.getElementById('t-yaw').textContent=(drone.rotation.y*57.3%360).toFixed(1)+'°';
+  document.getElementById('t-alt').textContent=(1.8+droneY).toFixed(2)+'m';
+  document.getElementById('t-thr').textContent=(1500+droneY*100).toFixed(0)+'µs';
+  document.getElementById('t-base').textContent=(cBaseY*57.3).toFixed(1)+'°';
+  document.getElementById('t-elbow').textContent=(cElbX*57.3).toFixed(1)+'°';
+  document.getElementById('t-wrist').textContent=(cWrX*57.3).toFixed(1)+'°';
+
+  // FPS
+  frameCount++;
+  const now=performance.now();
+  if(now-lastFpsTime>800){
+    document.getElementById('fps-counter').textContent=Math.round(frameCount*1000/(now-lastFpsTime))+' FPS';
+    frameCount=0; lastFpsTime=now;
+  }
+
+  renderer.render(scene,camera);
+}
+
+resize();
+window.addEventListener('resize',resize);
+animate();
+</script>
+</body>
+</html>

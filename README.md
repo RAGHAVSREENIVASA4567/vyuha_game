@@ -71,15 +71,18 @@ that's the first thing to check.
 
 ## VYUHA-X Terrain Run game
 
-The browser game and its optional Python bridges are in [`vyuha_game/`](./vyuha_game/). To run
-the game in mouse/keyboard test mode, start a local web server from that directory:
+The VYUHA-X browser game and its optional Python bridges are in the repository root. To run
+the game in mouse/keyboard test mode, start a local web server from the repository root:
 
 ```powershell
-cd vyuha_game
 python -m http.server 8000
 ```
 
 Open `http://localhost:8000` in a browser and select a terrain. The game loads Three.js from a
 CDN, so an internet connection is required. Optional Bluetooth/USB telemetry and webcam palm
-tracking bridges require Python packages; see the usage text in `vyuha_game/vyuha.py` and
-`vyuha_game/palm.py`. Run either bridge from `vyuha_game` when using its matching control mode.
+tracking bridges require Python packages; see the usage text in `vyuha.py` and `palm.py`.
+Run either bridge from the repository root when using its matching control mode.
+
+[`combat_drone_3d.html`](./combat_drone_3d.html) is a standalone Three.js combat-drone
+visualizer. Serve the repository over HTTP as above and open `/combat_drone_3d.html`; it loads
+Three.js from a CDN, so an internet connection is required.
